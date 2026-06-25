@@ -26,3 +26,5 @@ main
 NodeDaemon
 RemoteControl
 MCDebug
+
+build*/

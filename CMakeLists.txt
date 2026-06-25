@@ -1,77 +1,153 @@
-cmake_minimum_required (VERSION 2.6)
+cmake_minimum_required(VERSION 3.20)
 
-project (ToolDAQFramework)
+if(POLICY CMP0144)
+    cmake_policy(SET CMP0144 NEW)
+endif()
 
-set(DEPENDENCIES_PATH "${PROJECT_SOURCE_DIR}/..")
+if(POLICY CMP0167)
+    cmake_policy(SET CMP0167 OLD)
+endif()
 
-set(ZMQ_INC "${DEPENDENCIES_PATH}/zeromq-4.0.7/include/")
-set(ZMQ_LIB_PATH "${DEPENDENCIES_PATH}/zeromq-4.0.7/lib")
-set(ZMQ_LIBS zmq)
+project(ToolDAQFramework LANGUAGES CXX)
 
-set(BOOST_INC "${DEPENDENCIES_PATH}/boost_1_66_0/install/include/")
-set(BOOST_LIB_PATH "${DEPENDENCIES_PATH}/boost_1_66_0/install/lib")
-set(BOOST_LIBS boost_date_time boost_serialization boost_iostreams)
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-set(DATAMODEL_INC "")
-set(DATAMODEL_LIB_PATH "")
-set(DATAMODEL_LIBS "")
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE "Release" CACHE STRING "build type" FORCE)
+endif()
 
-set(MYTOOLS_INC "")
-set(MYTOOLS_LIB_PATH "")
-set(MYTOOLS_LIBS "")
+add_compile_options(-Wpedantic)
+set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wno-unused-result -Wno-deprecated-declarations")
 
-set(TOOLFRAMEWORK_INC "${DEPENDENCIES_PATH}/ToolFrameworkCore/include")
-set(TOOLFRAMEWORK_LIBS_PATH "${DEPENDENCIES_PATH}/ToolFrameworkCore/lib")
-set(TOOLFRAMEWORK_LIBS DataModelBase Logging Store ToolChain)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
 
-include_directories (${BOOST_INC} ${ZMQ_INC} ${DATAMODEL_INC} ${MYTOOLS_INC} ${TOOLFRAMEWORK_INC})
-link_directories("${PROJECT_SOURCE_DIR}/lib" ${BOOST_LIB_PATH} ${ZMQ_LIB_PATH} ${DATAMODEL_LIB_PATH} ${MYTOOLS_LIB_PATH} ${TOOLFRAMEWORK_LIBS_PATH})
+set(CMAKE_BUILD_RPATH_USE_ORIGIN TRUE)
+set(CMAKE_INSTALL_RPATH "$ORIGIN/../lib")
+set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
-MACRO(HEADER_DIRECTORIES return_list)
-    FILE(GLOB_RECURSE new_list ${PROJECT_SOURCE_DIR}/*.h)
-    FILE(COPY ${new_list} DESTINATION ${PROJECT_BINARY_DIR}/include)
-    SET(dir_list "")
-    FOREACH(file_path ${new_list})
-        GET_FILENAME_COMPONENT(dir_path ${file_path} PATH)
-        SET(dir_list ${dir_list} ${dir_path})
-    ENDFOREACH()
-    LIST(REMOVE_DUPLICATES dir_list)
-    SET(${return_list} ${dir_list})
-ENDMACRO()
+set(TFC_GIT_REPOSITORY "https://github.com/gtortone/ToolFrameworkCore.git"
+    CACHE STRING "ToolFrameworkCore repository")
+set(TFC_GIT_TAG "main" CACHE STRING "Branch/tag di ToolFrameworkCore")
+set(TFC_SOURCE_DIR "" CACHE PATH "Percorso locale di ToolFrameworkCore (opzionale)")
 
-FILE(COPY ${PROJECT_SOURCE_DIR}/configfiles DESTINATION ${PROJECT_BINARY_DIR}/)
+include(FetchContent)
+FetchContent_Declare(toolframeworkcore
+    GIT_REPOSITORY "${TFC_GIT_REPOSITORY}"
+    GIT_TAG        "${TFC_GIT_TAG}"
+    GIT_SHALLOW    TRUE)
+message(STATUS "Cloning ToolFrameworkCore ${TFC_GIT_REPOSITORY} (${TFC_GIT_TAG})...")
+FetchContent_MakeAvailable(toolframeworkcore)
+#FetchContent_Populate(toolframeworkcore)
+set(TFC_SRC "${toolframeworkcore_SOURCE_DIR}")
+message(STATUS "ToolFrameworkCore cloned in: ${TFC_SRC}")
 
-HEADER_DIRECTORIES(header_list)
-include_directories(${header_list})
+set(TDF_SRC "${CMAKE_CURRENT_SOURCE_DIR}")
 
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/lib)
+list(APPEND CMAKE_MODULE_PATH "${TFC_SRC}/cmake")
+include(ToolFrameworkDependencies)
 
-file(GLOB_RECURSE DAQ_STORE_SRC RELATIVE ${CMAKE_SOURCE_DIR} "src/Store/*.cpp")
-add_library(DAQStore SHARED ${DAQ_STORE_SRC})
+find_zeromq()
+find_boost_dependencies(date_time serialization iostreams)
+find_package(Threads REQUIRED)
 
-file(GLOB_RECURSE DAQ_LOGGING_SRC RELATIVE ${CMAKE_SOURCE_DIR} "src/DAQLogging/*.cpp")
-add_library(DAQLogging SHARED ${DAQ_LOGGING_SRC})
+add_library(tooldaq_common INTERFACE)
+target_link_libraries(tooldaq_common INTERFACE Threads::Threads)
 
-file(GLOB_RECURSE TEMP_DAQ_DATAMODEL_SRC RELATIVE ${CMAKE_SOURCE_DIR} "DataModel/*.cpp")
-add_library(TempDAQDataModel SHARED ${TEMP_DAQ_DATAMODEL_SRC})
+if(TARGET ToolFramework::ZeroMQ)
+    target_link_libraries(tooldaq_common INTERFACE ToolFramework::ZeroMQ)
+else()
+    target_include_directories(tooldaq_common INTERFACE ${ZMQ_INCLUDE_DIRS})
+    target_link_libraries(tooldaq_common INTERFACE ${ZMQ_LIBRARIES})
+endif()
 
-file(GLOB_RECURSE DAQ_DATAMODEL_BASE_SRC RELATIVE ${CMAKE_SOURCE_DIR} "src/DAQDataModelBase/*.cpp")
-add_library(DAQDataModelBase SHARED ${DAQ_DATAMODEL_BASE_SRC})
+if(TARGET Boost::date_time)
+    target_link_libraries(tooldaq_common INTERFACE
+        Boost::date_time Boost::serialization Boost::iostreams)
+else()
+    target_include_directories(tooldaq_common INTERFACE ${Boost_INCLUDE_DIRS})
+    target_link_libraries(tooldaq_common INTERFACE ${Boost_LIBRARIES})
+endif()
 
-file(GLOB_RECURSE TEMP_DAQTOOLS_SRC RELATIVE ${CMAKE_SOURCE_DIR} "UserTools/*.cpp")
-add_library(TempDAQTools SHARED ${TEMP_DAQTOOLS_SRC})
+# Nessuna copia degli header in build/include: gli header restano nelle loro
+# cartelle sorgente e aggiungiamo al path di include tutte le directory che
+# li contengono (in entrambi i repo), cosi' gli #include "Tool.h", "Store.h",
+# "Utilities.h", ... continuano a risolversi.
+file(GLOB_RECURSE _all_headers CONFIGURE_DEPENDS
+     "${TFC_SRC}/src/*.h"
+     "${TDF_SRC}/src/*.h"
+     "${TDF_SRC}/UserTools/*.h"
+     "${TDF_SRC}/DataModel/*.h")
 
-file(GLOB_RECURSE TOOLDAQCHAIN_SRC RELATIVE ${CMAKE_SOURCE_DIR} "src/ToolDAQChain/*.cpp")
-add_library(ToolDAQChain SHARED ${TOOLDAQCHAIN_SRC})
+set(_hdr_dirs "")
+foreach(_h ${_all_headers})
+    get_filename_component(_d "${_h}" DIRECTORY)
+    list(APPEND _hdr_dirs "${_d}")
+endforeach()
+if(_hdr_dirs)
+    list(REMOVE_DUPLICATES _hdr_dirs)
+    foreach(_d ${_hdr_dirs})
+        target_include_directories(tooldaq_common INTERFACE "${_d}")
+    endforeach()
+endif()
 
-file(GLOB_RECURSE SERVICEDISCOVERY_SRC RELATIVE ${CMAKE_SOURCE_DIR} "src/ServiceDiscovery/*.cpp")
-add_library(ServiceDiscovery SHARED ${SERVICEDISCOVERY_SRC})
+file(GLOB_RECURSE _all_cpp CONFIGURE_DEPENDS
+     "${TFC_SRC}/src/*.cpp"
+     "${TDF_SRC}/src/*.cpp"
+     "${TDF_SRC}/UserTools/*.cpp"
+     "${TDF_SRC}/DataModel/*.cpp")
 
-add_executable (main ${PROJECT_SOURCE_DIR}/src/main.cpp)
-target_link_libraries (main DAQStore DAQLogging ToolDAQChain ServiceDiscovery TempDAQTools TempDAQDataModel DAQDataModelBase ${ZMQ_LIBS} ${BOOST_LIBS} ${DATAMODEL_LIBS} ${MYTOOLS_LIBS} ${TOOLFRAMEWORK_LIBS})
+set(_lib_srcs "")
+set(_prog_srcs "")
+foreach(_f ${_all_cpp})
+    file(READ "${_f}" _content)
+    string(REGEX MATCH "int[ \t\r\n]+main[ \t\r\n]*\\(" _ismain "${_content}")
+    if(_ismain)
+        list(APPEND _prog_srcs "${_f}")
+    else()
+        list(APPEND _lib_srcs "${_f}")
+    endif()
+endforeach()
 
-add_executable ( NodeDaemon src/NodeDaemon/NodeDaemon.cpp)
-target_link_libraries (NodeDaemon ServiceDiscovery Store ${ZMQ_LIBS} ${BOOST_LIBS})
+add_library(ToolDAQ_objs OBJECT ${_lib_srcs})
+target_link_libraries(ToolDAQ_objs PUBLIC tooldaq_common)
 
-add_executable ( RemoteControl src/RemoteControl/RemoteControl.cpp)
-target_link_libraries (RemoteControl ServiceDiscovery Store ${ZMQ_LIBS} ${BOOST_LIBS})
+add_library(ToolDAQ SHARED $<TARGET_OBJECTS:ToolDAQ_objs>)         # libToolDAQ.so
+target_link_libraries(ToolDAQ PUBLIC tooldaq_common)
+set_target_properties(ToolDAQ PROPERTIES OUTPUT_NAME "ToolDAQ")
+
+add_library(ToolDAQ_static STATIC $<TARGET_OBJECTS:ToolDAQ_objs>)  # libToolDAQ.a
+target_link_libraries(ToolDAQ_static PUBLIC tooldaq_common)
+set_target_properties(ToolDAQ_static PROPERTIES OUTPUT_NAME "ToolDAQ")
+
+message(STATUS "libToolDAQ.{so,a}: ${_lib_srcs}")
+
+foreach(_p ${_prog_srcs})
+    get_filename_component(_name "${_p}" NAME_WE)
+    if(TARGET ${_name})
+        message(WARNING "Executable '${_name}' duplicated, skip${_p}")
+    else()
+        add_executable(${_name} "${_p}")
+        target_link_libraries(${_name} PRIVATE ToolDAQ)
+        message(STATUS "Executable ${_name}: ${_p}")
+    endif()
+endforeach()
+
+include(GNUInstallDirs)
+
+install(TARGETS ToolDAQ ToolDAQ_static
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
+
+get_property(_all_targets DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+             PROPERTY BUILDSYSTEM_TARGETS)
+foreach(_t ${_all_targets})
+    get_target_property(_type ${_t} TYPE)
+    if(_type STREQUAL "EXECUTABLE")
+        install(TARGETS ${_t} RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+    endif()
+endforeach()
