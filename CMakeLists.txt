@@ -76,8 +76,8 @@ endif()
 file(GLOB_RECURSE _all_headers CONFIGURE_DEPENDS
      "${TFC_SRC}/src/*.h"
      "${TDF_SRC}/src/*.h"
-     "${TDF_SRC}/UserTools/*.h"
-     "${TDF_SRC}/DataModel/*.h")
+     "${TDF_SRC}/examples/UserTools/*.h"
+     "${TDF_SRC}/examples/DataModel/*.h")
 
 set(INCLUDE_OUT_DIR "${CMAKE_BINARY_DIR}/include")
 
@@ -88,6 +88,8 @@ add_custom_target(copy_headers ALL
             "${INCLUDE_OUT_DIR}"
     DEPENDS ${_all_headers}
 )
+
+file(COPY ${TDF_SRC}/examples/configfiles DESTINATION ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/)
 
 set(_hdr_dirs "")
 foreach(_h ${_all_headers})
@@ -104,8 +106,8 @@ endif()
 file(GLOB_RECURSE _all_cpp CONFIGURE_DEPENDS
      "${TFC_SRC}/src/*.cpp"
      "${TDF_SRC}/src/*.cpp"
-     "${TDF_SRC}/UserTools/*.cpp"
-     "${TDF_SRC}/DataModel/*.cpp")
+     "${TDF_SRC}/examples/UserTools/*.cpp"
+     "${TDF_SRC}/examples/DataModel/*.cpp")
 
 set(_lib_srcs "")
 set(_prog_srcs "")
