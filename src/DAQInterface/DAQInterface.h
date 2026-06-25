@@ -1,0 +1,91 @@
+#ifndef DAQ_INTERFACE_H
+#define DAQ_INTERFACE_H
+
+//#include <ServiceDiscovery.h>
+//#include <zmq.hpp>
+#include <iostream>
+#include <string>
+#include <thread>
+#include <chrono>
+#include <functional>
+#include <SlowControlCollection.h>
+//#include <boost/uuid/uuid.hpp>             //uuid class
+//#include <boost/uuid/uuid_generators.hpp>  //generators
+//#include <boost/uuid/uuid_io.hpp>          //streaming operators etc.
+//#include <boost/date_time/posix_time/posix_time.hpp>
+//#include <boost/progress.hpp>
+#include <Services.h>
+
+namespace {
+  const unsigned int default_timeout=0;
+}
+
+namespace ToolFramework {
+  
+  class DAQInterface{
+    
+  public:
+    
+    DAQInterface(std::string configuration_file);
+    ~DAQInterface();
+    
+    bool SQLQuery(const std::string& query, std::vector<std::string>& responses, const unsigned int timeout=default_timeout);
+    bool SQLQuery(const std::string& query, std::string& response, const unsigned int timeout=default_timeout);
+    bool SQLQuery(const std::string& query, const unsigned int timeout=default_timeout);
+    
+    bool SendLog(const std::string& message, LogLevel severity=LogLevel::Message, const std::string& device="", const uint64_t timestamp=0); //serverity levels are 0 = critical, 1 = Error, 2 = warning, 3= info , 4-9 debug
+    bool SendAlarm(const std::string& message, bool critical=false, const std::string& device="", const uint64_t timestamp=0, const unsigned int timeout=default_timeout);
+    bool SendMonitoringData(const std::string& json_data, const std::string& subject, const std::string& device="", const uint64_t timestamp=0);
+    bool SendCalibrationData(const std::string& json_data, const std::string& description, const std::string& device="", const uint64_t timestamp=0, int* version=nullptr, const unsigned int timeout=default_timeout);
+    bool GetCalibrationData(std::string& json_data, int& version, const std::string& device="", const unsigned int timeout=default_timeout);
+    bool GetCalibrationData(std::string& json_data, int&& version=-1, const std::string& device="", const unsigned int timeout=default_timeout);
+    bool SendDeviceConfig(const std::string& json_data, const std::string& author, const std::string& description, const std::string& device="", const uint64_t timestamp=0, int* version=nullptr, const unsigned int timeout=default_timeout);
+    bool GetDeviceConfig(std::string& json_data, const int version, const std::string& device="", const unsigned int timeout=default_timeout);
+    bool GetRunConfig(std::string& json_data, const int base_config_id, const int runmode_config_id, const unsigned int timeout=default_timeout);
+    bool GetRunModeConfig(std::string& json_data, const std::string& name, const int version, const unsigned int timeout=default_timeout);
+    bool GetDeviceConfigFromRunConfig(std::string& json_data, const int base_config_id, const int runmode_config_id, const std::string& device="", const unsigned int timeout=default_timeout);
+    //bool GetDeviceConfigFromRunConfig(std::string& json_data, const std::string& runconfig_name, const int runconfig_version, const std::string& device="", const unsigned int timeout=default_timeout);
+    bool SendROOTplot(const std::string& plot_name, const std::string& draw_options, const std::string& json_data, int* version=nullptr, const uint64_t timestamp=0, const unsigned int lifetime=5, const unsigned int timeout=default_timeout);
+    bool GetROOTplot(const std::string& plot_name, std::string& draw_option, std::string& json_data, int& version, const unsigned int timeout=default_timeout);
+    bool GetROOTplot(const std::string& plot_name, std::string& draw_option, std::string& json_data, int&& version=-1, const unsigned int timeout=default_timeout);
+    bool SendPlotlyPlot(const std::string& name, const std::string& json_trace, const std::string& json_layout="{}", int* version=nullptr, const uint64_t timestamp=0, const unsigned int lifetime=5, unsigned int timeout=default_timeout);
+    bool SendPlotlyPlot(const std::string& name, const std::vector<std::string>& json_traces, const std::string& json_layout="{}", int* version=nullptr, const uint64_t timestamp=0, const unsigned int lifetime=5, unsigned int timeout=default_timeout);
+    bool GetPlotlyPlot(const std::string& name, std::string& json_trace, std::string& json_layout, int& version, unsigned int timeout=default_timeout);
+    bool GetPlotlyPlot(const std::string& name, std::string& json_trace, std::string& json_layout, int&& version=-1, unsigned int timeout=default_timeout);
+    std::string GetLocalConfig();
+    bool SetLocalConfig(std::string json);
+
+    
+    SlowControlCollection* GetSlowControlCollection();
+    SlowControlElement* GetSlowControlVariable(std::string key);
+    bool AddSlowControlVariable(std::string name, SlowControlElementType type, std::function<std::string(const char*)> change_function=nullptr, std::function<std::string(const char*)> read_function=nullptr);
+    bool RemoveSlowControlVariable(std::string name);
+    void ClearSlowControlVariables();
+    
+    bool AlertSubscribe(std::string alert, std::function<bool(const char*, const char*)> function);
+    bool AlertSend(std::string alert, std::string payload);
+    
+    std::string PrintSlowControlVariables();
+    std::string GetDeviceName();
+    void SetVerbose(bool in);
+    
+    template<typename T> T GetSlowControlValue(std::string name){
+      return sc_vars[name]->GetValue<T>();
+    }
+    
+    SlowControlCollection sc_vars;
+    
+  private:
+
+    Services* m_services;
+    zmq::context_t* m_context=nullptr;
+    ServiceDiscovery* mp_SD;
+    Store vars;
+    std::string m_name;
+    
+    
+  };
+  
+}
+
+#endif
