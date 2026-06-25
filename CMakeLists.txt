@@ -42,7 +42,6 @@ FetchContent_Declare(toolframeworkcore
     GIT_SHALLOW    TRUE)
 message(STATUS "Cloning ToolFrameworkCore ${TFC_GIT_REPOSITORY} (${TFC_GIT_TAG})...")
 FetchContent_MakeAvailable(toolframeworkcore)
-#FetchContent_Populate(toolframeworkcore)
 set(TFC_SRC "${toolframeworkcore_SOURCE_DIR}")
 message(STATUS "ToolFrameworkCore cloned in: ${TFC_SRC}")
 
