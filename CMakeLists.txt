@@ -32,8 +32,8 @@ set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
 set(TFC_GIT_REPOSITORY "https://github.com/gtortone/ToolFrameworkCore.git"
     CACHE STRING "ToolFrameworkCore repository")
-set(TFC_GIT_TAG "main" CACHE STRING "Branch/tag di ToolFrameworkCore")
-set(TFC_SOURCE_DIR "" CACHE PATH "Percorso locale di ToolFrameworkCore (opzionale)")
+set(TFC_GIT_TAG "main" CACHE STRING "ToolFrameworkCore branch/tag")
+set(TFC_SOURCE_DIR "" CACHE PATH "ToolFrameworkCore local path (opt)")
 
 include(FetchContent)
 FetchContent_Declare(toolframeworkcore
@@ -73,15 +73,21 @@ else()
     target_link_libraries(tooldaq_common INTERFACE ${Boost_LIBRARIES})
 endif()
 
-# Nessuna copia degli header in build/include: gli header restano nelle loro
-# cartelle sorgente e aggiungiamo al path di include tutte le directory che
-# li contengono (in entrambi i repo), cosi' gli #include "Tool.h", "Store.h",
-# "Utilities.h", ... continuano a risolversi.
 file(GLOB_RECURSE _all_headers CONFIGURE_DEPENDS
      "${TFC_SRC}/src/*.h"
      "${TDF_SRC}/src/*.h"
      "${TDF_SRC}/UserTools/*.h"
      "${TDF_SRC}/DataModel/*.h")
+
+set(INCLUDE_OUT_DIR "${CMAKE_BINARY_DIR}/include")
+
+add_custom_target(copy_headers ALL
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${INCLUDE_OUT_DIR}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${_all_headers}
+            "${INCLUDE_OUT_DIR}"
+    DEPENDS ${_all_headers}
+)
 
 set(_hdr_dirs "")
 foreach(_h ${_all_headers})
