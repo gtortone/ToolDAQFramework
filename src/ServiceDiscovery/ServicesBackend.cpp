@@ -1102,14 +1102,9 @@ bool ServicesBackend::Ready(int timeout){
 	// send test pub queries until one gets a reply - this may be redundant
 	std::string resp;
 	std::chrono::milliseconds time_left = std::chrono::duration_cast<std::chrono::milliseconds>(end-std::chrono::steady_clock::now());
-	#if __GNUC__ > 12
-	   long t = 500;
-	#else
-   	   long long t = 500;	   
-	#endif
 	while(time_left>std::chrono::milliseconds{100}){
 		//std::cout<<"sending test query with time_left: "<<time_left.count()<<" ms"<<std::endl;
-		if(!SendCommand("W_QUERY"," select now()", &resp, std::min(t,time_left.count()))){
+		if(!SendCommand("W_QUERY"," select now()", &resp, std::min(static_cast<long long>(500),time_left.count()))){
 			std::cerr<<"timeout waiting on test pub"<<std::endl;
 		} else {
 			if(m_verbosity) std::cout<<"test pub repsonse: "<<resp<<std::endl;
