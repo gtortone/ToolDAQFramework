@@ -28,3 +28,4 @@ RemoteControl
 MCDebug
 
 build*/
+bindings/build*/

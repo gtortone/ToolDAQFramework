@@ -1,8 +1,9 @@
 set(CMAKE_SYSTEM_NAME Linux)
 set(CMAKE_SYSTEM_PROCESSOR arm)
 
-set(CMAKE_C_COMPILER   aarch64-linux-gnu-gcc)
-set(CMAKE_CXX_COMPILER aarch64-linux-gnu-g++)
+set(CMAKE_PREFIX aarch64-linux-gnu)
+set(CMAKE_C_COMPILER   ${CMAKE_PREFIX}-gcc)
+set(CMAKE_CXX_COMPILER ${CMAKE_PREFIX}-g++)
 
 # set(CMAKE_SYSROOT /path/sysroot/arm)
 
